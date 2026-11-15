@@ -33,15 +33,24 @@ jobs:
           cp MainActivity.kt FpsService.kt Strings.kt app/src/main/java/com/realfps/meter/
           cp AndroidManifest.xml app/src/main/AndroidManifest.xml
 
-          # Logo -> app icon (square 512x512)
-          LOGO=$(ls logo.jpg logo.jpeg logo.png logoo.jpg 2>/dev/null | head -1)
-          if [ -z "$LOGO" ]; then echo "logo.jpg tapilmadi (repo-nun koku)"; exit 1; fi
+          # Logo -> app icon (square 512x512). Butun repo axtarilir, boyuk/kicik herf ferq etmir
+          echo "--- repo fayllari ---"
+          find . -maxdepth 2 -not -path './.git*' -not -path './app/*' | sort
+          echo "---------------------"
+          LOGO=$(find . -type f \( -iname 'logo*.jpg' -o -iname 'logo*.jpeg' -o -iname 'logo*.png' -o -iname 'logo*.webp' \) -not -path './.git/*' -not -path './app/*' | head -1)
           sudo apt-get update -qq || true
           sudo apt-get install -y -qq imagemagick || true
-          if command -v convert >/dev/null 2>&1; then
-            convert "$LOGO" -resize '512x512^' -gravity center -extent 512x512 -quality 92 app/src/main/res/drawable-nodpi/logo.jpg
+          OUT=app/src/main/res/drawable-nodpi/logo.jpg
+          if [ -n "$LOGO" ]; then
+            echo "Logo tapildi: $LOGO"
+            if command -v convert >/dev/null 2>&1; then
+              convert "$LOGO" -resize '512x512^' -gravity center -extent 512x512 -quality 92 "$OUT"
+            else
+              cp "$LOGO" "$OUT"
+            fi
           else
-            cp "$LOGO" app/src/main/res/drawable-nodpi/logo.jpg
+            echo "::warning::logo.jpg repoda tapilmadi, muveqqeti yasil ikon istifade olunur"
+            convert -size 512x512 xc:black -fill none -stroke '#00E676' -strokewidth 28 -draw 'circle 256,256 256,70' -quality 92 "$OUT"
           fi
 
           cat > settings.gradle.kts <<'EOF'
