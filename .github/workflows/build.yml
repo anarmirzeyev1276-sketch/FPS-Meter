@@ -1,0 +1,142 @@
+name: Build Real FPS Meter
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Generate Android project from flat files
+        run: |
+          set -e
+          mkdir -p app/src/main/java/com/realfps/meter app/src/main/res/drawable-nodpi
+          cp MainActivity.kt FpsService.kt Strings.kt app/src/main/java/com/realfps/meter/
+          cp AndroidManifest.xml app/src/main/AndroidManifest.xml
+
+          # Logo -> app icon (square 512x512)
+          LOGO=$(ls logo.jpg logo.jpeg logo.png logoo.jpg 2>/dev/null | head -1)
+          if [ -z "$LOGO" ]; then echo "logo.jpg tapilmadi (repo-nun koku)"; exit 1; fi
+          sudo apt-get update -qq || true
+          sudo apt-get install -y -qq imagemagick || true
+          if command -v convert >/dev/null 2>&1; then
+            convert "$LOGO" -resize '512x512^' -gravity center -extent 512x512 -quality 92 app/src/main/res/drawable-nodpi/logo.jpg
+          else
+            cp "$LOGO" app/src/main/res/drawable-nodpi/logo.jpg
+          fi
+
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "RealFPSMeter"
+          include(":app")
+          EOF
+
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
+          android.useAndroidX=false
+          android.nonTransitiveRClass=true
+          kotlin.code.style=official
+          EOF
+
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.realfps.meter"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.realfps.meter"
+                  minSdk = 26
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                      signingConfig = signingConfigs.getByName("debug")
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+              lint {
+                  abortOnError = false
+                  checkReleaseBuilds = false
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/release/app-release.apk RealFPSMeterV1.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RealFPSMeterV1
+          path: RealFPSMeterV1.apk
+
+      - name: Publish release V1
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: V1
+          name: Real FPS Meter V1
+          body: Real FPS Meter V1 APK
+          files: RealFPSMeterV1.apk
+          make_latest: true
+          
