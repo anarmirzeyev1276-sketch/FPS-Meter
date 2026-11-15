@@ -21,12 +21,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Accept Android SDK licenses (SDK is preinstalled on ubuntu-latest)
-        run: |
-          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          if [ -x "$SDKM" ]; then yes | "$SDKM" --licenses >/dev/null 2>&1 || true; fi
-          echo "ANDROID_HOME=$ANDROID_HOME"
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
